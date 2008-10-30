@@ -11,9 +11,11 @@
 
 #-------------------------------------------------------------------------------
 class Numeric
-  def cm() self.to_f/10      end
-  def mm() self              end
-  def pt() self.to_f/72*25.4 end
+  # assumes original dimension in mm
+  # used because prawn and rghost use different base units of measurement
+  # and I prefer mm :)
+  def to_cm() self.to_f/10      end
+  def to_pt() self.to_f/25.4*72 end
 end
 
 #-------------------------------------------------------------------------------
@@ -36,7 +38,10 @@ class PrintObject
   
   def print pdf, offset_x=0, offset_y=0, data=nil
     if data || !hide_if_empty?
-      pdf.rect offset_x+ left, offset_y+ base, width, height
+      pdf.rect offset_x+ left, 
+               offset_y+ base, 
+               width, 
+               height
     end
   end
   
@@ -59,6 +64,22 @@ class PrintImage < PrintObject
     @image= image
     @height= 1.333* width if height== 0
   end
+
+  def print pdf, offset_x=0, offset_y=0, data=nil
+    image_filename= get_data(@image, data)
+    if image_filename && image_filename.size>0
+      pdf.image image_filename,
+                offset_x+ left,
+                offset_y+ base,
+                width,
+                height
+    else
+      pdf.rect  offset_x+ left,
+                offset_y+ base,
+                width,
+                height
+    end
+  end
 end
 
 #-------------------------------------------------------------------------------
@@ -71,9 +92,12 @@ class PrintShape < PrintObject
   end
 
   def print pdf, offset_x=0, offset_y=0, data=nil
-    pdf.rect offset_x+ left, offset_y+ base, width, height,
+    pdf.rect((offset_x+ left), 
+             (offset_y+ base), 
+             width, 
+             height,
              :border_colour=> @border_colour,
-             :fill_colour=>   @fill_colour
+             :fill_colour=>   @fill_colour)
   end
 end
   
@@ -87,16 +111,18 @@ class PrintText < PrintObject
   
   def print pdf, offset_x=0, offset_y=0, data= nil
     if print_object? data
-      pdf.text get_data(text, data), 
-               offset_x+ left, 
-               offset_y+ base, 
+      pdf.text(get_data(text, data), 
+               (offset_x+ left), 
+               (offset_y+ base), 
                :font=>   font,
-               :align=>  align
+               :align=>  align,
+               :width=>  width)
     end
   end
   
   def height
-    font.size.pt
+    font.size.to_f / 72 * 25.4
+    #9
   end
 end
 
@@ -118,11 +144,12 @@ class PrintArea < PrintObject
   end
   
   def text value, params={}
+    text_left= params[:left] || @cursor_x
     new_text= PrintText.new(value,
                             params[:font] || @default_font,
-                            :left=>  params[:left] || @cursor_x,
+                            :left=>  text_left,
                             :base=>  params[:base] || @cursor_y,
-                            :width=> params[:width],
+                            :width=> params[:width]|| @width- text_left,
                             :align=> params[:align]|| @default_align)
     @children << new_text
     @cursor_x= params[:left] if params[:left]

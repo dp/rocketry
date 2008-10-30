@@ -1,9 +1,9 @@
-class Font
+class PrintFont
   attr_accessor :tag, :name, :size, :colour, :bold, :italic
   
   def initialize tag, params
     @tag=    tag
-    @name=   params[:font]   || 'Palatino-Roman'#  'Lucida-Grande'
+    @name=   params[:font]   || '/Library/Fonts/Trebuchet MS.ttf' #'Times-Roman' #'Palatino-Roman'#  'Lucida-Grande'
     @size=   params[:size]   || 9 
     @colour= params[:colour] || '#000000' # black
     @bold=   params[:bold]   || false
@@ -17,7 +17,7 @@ class FontCollection
   end
   
   def add font_name, params= {}
-    @fonts[font_name]= Font.new(font_name, params)
+    @fonts[font_name]= PrintFont.new(font_name, params)
   end
   
   def method_missing font_name

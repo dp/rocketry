@@ -1,4 +1,5 @@
 # wrapper for the pdf library we choose
+# assumes all measurements in points (1/72")
 
 require 'rubygems'
 require 'prawn'
@@ -9,21 +10,22 @@ class PDF
     @filename= filename
     # keep a track of fonts defined (just their names)so we can add new ones
     @fonts= []
-    RGhost::Config::GS[:path]= '/opt/local/bin/gs'
-    RGhost::Config::GS[:unit]= RGhost::Units::Cm
-    # Additional Fonts
-    # RGhost::Config::GS[:extensions] << '/Users/sharon/Documents/Dave/ruby/multidose/fonts'
-    
-    @pdf= RGhost::Document.new
-    if block_given?
-      yield self 
-      save
+    Prawn::Document.new :page_size=> 'A4',
+                        :top_margin=> 0,
+                        :bottom_margin=> 0,
+                        :left_margin=> 0,
+                        :right_margin=> 0 do |pdf|
+      @pdf= pdf
+      if block_given?
+        yield self 
+        save
+      end
     end
     self
   end
   
   def save
-    @pdf.render :pdf , :filename=> @filename
+    @pdf.render_file @filename
   end
   
   # RGhost requires all fonts be defines as tags
@@ -41,26 +43,58 @@ class PDF
   end
   
   def text value, x, y, params={}
-    add_font params[:font] if params[:font]
-    @pdf.moveto :x=> x.cm, :y=> y.cm
+    #add_font params[:font] if params[:font]
+    #@pdf.moveto :x=> x.cm, :y=> y.cm
     align= case params[:align]
-      when :left   then :show_left
-      when :centre then :show_center
-      when :right  then :show_right
+      when :left   then :left
+      when :centre then :center
+      when :right  then :right
     end
-    @pdf.show value, :align=> align , :with=> params[:font].tag
+    @pdf.fill_color= (params[:font].colour || 'ffffff').gsub('#','')
+    @pdf.font params[:font].name
+    @pdf.bounding_box [x.to_pt, y.to_pt+ params[:font].size], :width=> params[:width].to_pt do
+      @pdf.text value, #:at=> [0,0],# [x, y], 
+                       :align=> align, 
+                       :size=> params[:font].size
+    end
   end
   
   def rect x, y, w, h, params={}
-    border_colour= params[:border_colour] || '#000000'
+    border_colour= params[:border_colour] || '#B0B0B0'
     fill_colour=   params[:fill_colour]
-    content= fill_colour ? {:color=> fill_colour} : {:fill=> false}
-    @pdf.frame :x      => x.cm,
-               :y      => y.cm,
-               :width  => w.cm,
-               :height => h.cm,
-               :border => {:color=> border_colour},
-               :content=> content
+    @pdf.line_width=1
+    @pdf.stroke_color= border_colour.gsub('#','') 
+    if fill_colour
+      @pdf.fill_and_stroke do
+        @pdf.fill_color= fill_colour.gsub('#','')
+        @pdf.rectangle [x.to_pt, (y+h).to_pt], w.to_pt, h.to_pt
+      end
+    else
+      @pdf.stroke do
+        @pdf.rectangle [x.to_pt, (y+h).to_pt], w.to_pt, h.to_pt
+      end
+    end
+  end
+
+  def image filename, x, y, w, h
+    filename= File.join('/Users/sharon/Desktop/multidose packs', filename)
+    target_proportion= w.to_f/ h
+    # can't seem to get image width without printing to page,
+    # so we'll print off page and then get measurements
+    temp_img= @pdf.image filename, :at=> [0, -10], :width=> w.to_pt
+
+    image_proportion= temp_img.width.to_f/ temp_img.height
+
+    if target_proportion> image_proportion
+      @pdf.image filename,
+                 :at=> [x.to_pt, (y+h).to_pt],
+                 :height=> h.to_pt
+    else
+      @pdf.image filename,
+                 :at=> [x.to_pt, (y+h).to_pt],
+                 :width=> w.to_pt
+    end
   end
 end
+
 
